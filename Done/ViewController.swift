@@ -45,6 +45,17 @@ class ViewController: UIViewController, UITableViewDataSource, UITableViewDelega
             let fetchError = error as NSError
             print("\(fetchError), \(fetchError.userInfo)")
         }
+        
+        let userDefaults = NSUserDefaults.standardUserDefaults()
+        let didDetectIncompatibleStore = userDefaults.boolForKey("didDetectIncompatibleStore")
+        
+        if didDetectIncompatibleStore {
+            // Show Alert
+            let applicationName = NSBundle.mainBundle().objectForInfoDictionaryKey("CFBundleDisplayName")
+            let message = "A serious application error occurred while \(applicationName) tried to read your data. Please contact support for help."
+            
+            self.showAlertWithTitle("Warning", message: message, cancelButtonTitle: "OK")
+        }
     }
     
     // MARK: -
@@ -177,6 +188,22 @@ class ViewController: UIViewController, UITableViewDataSource, UITableViewDelega
             }
             break;
         }
+    }
+    
+    // MARK: -
+    // MARK: Helper Methods
+    private func showAlertWithTitle(title: String, message: String, cancelButtonTitle: String) {
+        // Initialize Alert Controller
+        let alertController = UIAlertController(title: title, message: message, preferredStyle: .Alert)
+        
+        // Configure Alert Controller
+        alertController.addAction(UIAlertAction(title: cancelButtonTitle, style: .Default, handler: { (_) -> Void in
+            let userDefaults = NSUserDefaults.standardUserDefaults()
+            userDefaults.removeObjectForKey("didDetectIncompatibleStore")
+        }))
+        
+        // Present Alert Controller
+        presentViewController(alertController, animated: true, completion: nil)
     }
 
 }

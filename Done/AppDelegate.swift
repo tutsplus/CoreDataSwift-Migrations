@@ -72,12 +72,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Initialize Persistent Store Coordinator
         let persistentStoreCoordinator = NSPersistentStoreCoordinator(managedObjectModel: self.managedObjectModel)
         
-        // URL Documents Directory
-        let URLs = NSFileManager.defaultManager().URLsForDirectory(.DocumentDirectory, inDomains: .UserDomainMask)
-        let applicationDocumentsDirectory = URLs[(URLs.count - 1)]
-        
         // URL Persistent Store
-        let URLPersistentStore = applicationDocumentsDirectory.URLByAppendingPathComponent("Done.sqlite")
+        let URLPersistentStore = self.applicationStoresDirectory().URLByAppendingPathComponent("Done.sqlite")
         
         do {
             // Declare Options
@@ -87,15 +83,37 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             try persistentStoreCoordinator.addPersistentStoreWithType(NSSQLiteStoreType, configuration: nil, URL: URLPersistentStore, options: options)
             
         } catch {
-            // Populate Error
-            var userInfo = [String: AnyObject]()
-            userInfo[NSLocalizedDescriptionKey] = "There was an error creating or loading the application's saved data."
-            userInfo[NSLocalizedFailureReasonErrorKey] = "There was an error creating or loading the application's saved data."
+            let fm = NSFileManager.defaultManager()
             
-            userInfo[NSUnderlyingErrorKey] = error as NSError
-            let wrappedError = NSError(domain: "com.tutsplus.Done", code: 1001, userInfo: userInfo)
+            if fm.fileExistsAtPath(URLPersistentStore.path!) {
+                let nameIncompatibleStore = self.nameForIncompatibleStore()
+                let URLCorruptPersistentStore = self.applicationIncompatibleStoresDirectory().URLByAppendingPathComponent(nameIncompatibleStore)
+                
+                do {
+                    // Move Incompatible Store
+                    try fm.moveItemAtURL(URLPersistentStore, toURL: URLCorruptPersistentStore)
+                    
+                } catch {
+                    let moveError = error as NSError
+                    print("\(moveError), \(moveError.userInfo)")
+                }
+            }
             
-            NSLog("Unresolved error \(wrappedError), \(wrappedError.userInfo)")
+            do {
+                // Declare Options
+                let options = [ NSMigratePersistentStoresAutomaticallyOption : true, NSInferMappingModelAutomaticallyOption : true ]
+                
+                // Add Persistent Store to Persistent Store Coordinator
+                try persistentStoreCoordinator.addPersistentStoreWithType(NSSQLiteStoreType, configuration: nil, URL: URLPersistentStore, options: options)
+                
+            } catch {
+                let storeError = error as NSError
+                print("\(storeError), \(storeError.userInfo)")
+            }
+            
+            // Update User Defaults
+            let userDefaults = NSUserDefaults.standardUserDefaults()
+            userDefaults.setBool(true, forKey: "didDetectIncompatibleStore")
         }
         
         return persistentStoreCoordinator
@@ -110,6 +128,61 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             let saveError = error as NSError
             print("\(saveError), \(saveError.userInfo)")
         }
+    }
+    
+    private func applicationStoresDirectory() -> NSURL {
+        let fm = NSFileManager.defaultManager()
+        
+        // Fetch Application Support Directory
+        let URLs = fm.URLsForDirectory(.ApplicationSupportDirectory, inDomains: .UserDomainMask)
+        let applicationSupportDirectory = URLs[(URLs.count - 1)]
+        
+        // Create Application Stores Directory
+        let URL = applicationSupportDirectory.URLByAppendingPathComponent("Stores")
+        
+        if !fm.fileExistsAtPath(URL.path!) {
+            do {
+                // Create Directory for Stores
+                try fm.createDirectoryAtURL(URL, withIntermediateDirectories: true, attributes: nil)
+                
+            } catch {
+                let createError = error as NSError
+                print("\(createError), \(createError.userInfo)")
+            }
+        }
+        
+        return URL
+    }
+
+    private func applicationIncompatibleStoresDirectory() -> NSURL {
+        let fm = NSFileManager.defaultManager()
+        
+        // Create Application Incompatible Stores Directory
+        let URL = applicationStoresDirectory().URLByAppendingPathComponent("Incompatible")
+        
+        if !fm.fileExistsAtPath(URL.path!) {
+            do {
+                // Create Directory for Stores
+                try fm.createDirectoryAtURL(URL, withIntermediateDirectories: true, attributes: nil)
+                
+            } catch {
+                let createError = error as NSError
+                print("\(createError), \(createError.userInfo)")
+            }
+        }
+        
+        return URL
+    }
+
+    private func nameForIncompatibleStore() -> String {
+        // Initialize Date Formatter
+        let dateFormatter = NSDateFormatter()
+        
+        // Configure Date Formatter
+        dateFormatter.formatterBehavior = .Behavior10_4
+        dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+        
+        return "\(dateFormatter.stringFromDate(NSDate())).sqlite"
     }
 
 }
